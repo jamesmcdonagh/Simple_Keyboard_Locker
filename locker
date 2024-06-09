@@ -1,0 +1,105 @@
+import ctypes
+import threading
+from pynput import keyboard
+import tkinter as tk
+from tkinter import StringVar, messagebox
+
+# Global flag to indicate if the keyboard is locked
+keyboard_locked = False
+pressed_keys = set()
+
+# Function to lock the keyboard
+def lock_keyboard():
+    global keyboard_locked
+    if not keyboard_locked:
+        try:
+            if ctypes.windll.user32.BlockInput(True):
+                keyboard_locked = True
+                status.set("Keyboard Locked")
+                print("Keyboard locked")
+            else:
+                print("Failed to lock keyboard. Administrative privileges might be required.")
+                messagebox.showerror("Error", "Failed to lock keyboard. Administrative privileges might be required.")
+        except Exception as e:
+            print(f"Exception occurred while locking keyboard: {e}")
+            messagebox.showerror("Error", f"Exception occurred while locking keyboard: {e}")
+
+# Function to unlock the keyboard
+def unlock_keyboard():
+    global keyboard_locked
+    if keyboard_locked:
+        try:
+            if ctypes.windll.user32.BlockInput(False):
+                keyboard_locked = False
+                status.set("Keyboard Unlocked")
+                print("Keyboard unlocked")
+            else:
+                print("Failed to unlock keyboard.")
+                messagebox.showerror("Error", "Failed to unlock keyboard.")
+        except Exception as e:
+            print(f"Exception occurred while unlocking keyboard: {e}")
+            messagebox.showerror("Error", f"Exception occurred while unlocking keyboard: {e}")
+
+# Function to handle key press events
+def on_press(key):
+    global pressed_keys
+    try:
+        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+            pressed_keys.add("ctrl")
+        elif key == keyboard.Key.alt_l or key == keyboard.Key.alt_r:
+            pressed_keys.add("alt")
+        elif key.char == 'l':
+            pressed_keys.add('l')
+
+        print(f"Keys pressed: {pressed_keys}")
+
+        if "ctrl" in pressed_keys and "alt" in pressed_keys and 'l' in pressed_keys:
+            if keyboard_locked:
+                unlock_keyboard()
+            else:
+                lock_keyboard()
+    except AttributeError:
+        pass
+
+# Function to handle key release events
+def on_release(key):
+    global pressed_keys
+    try:
+        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+            pressed_keys.discard("ctrl")
+        elif key == keyboard.Key.alt_l or key == keyboard.Key.alt_r:
+            pressed_keys.discard("alt")
+        elif key.char == 'l':
+            pressed_keys.discard('l')
+    except AttributeError:
+        pass
+
+# Function to start listening for keyboard events
+def listen_keyboard():
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()
+
+# Function to create the GUI
+def create_gui():
+    root = tk.Tk()
+    root.title("Keyboard Locker")
+
+    global status
+    status = StringVar()
+    status.set("Keyboard Unlocked")
+
+    label = tk.Label(root, textvariable=status, font=("Helvetica", 16))
+    label.pack(pady=20)
+
+    quit_button = tk.Button(root, text="Quit", command=root.quit)
+    quit_button.pack(pady=10)
+
+    return root
+
+# Start the keyboard listener in a daemon thread
+listener_thread = threading.Thread(target=listen_keyboard, daemon=True)
+listener_thread.start()
+
+# Create and start the GUI
+root = create_gui()
+root.mainloop()
